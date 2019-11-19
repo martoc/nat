@@ -1,0 +1,228 @@
+{
+   "AWSTemplateFormatVersion": "2010-09-09",
+   "Description": "NAT",
+   "Parameters": {
+      "Name": {
+         "Description": "Name to default resources to. Applied as tag to resources",
+         "Type": "String"
+      },
+      "Version": {
+         "Description": "Version/Revision of the stack. Applied as tag to resources",
+         "Type": "String",
+         "Default": "1.0.0"
+      },
+      "Environment": {
+         "Description": "Stage/lifecycle of the application. Applied as a tag to resources",
+         "Type": "String"
+      },
+      "ImageId": {
+         "Description": "Ami to be used for NAT server",
+         "Type": "String"
+      },
+      "InstanceType": {
+         "Description": "EC2 instance type",
+         "Type": "String",
+         "Default": "t3.medium",
+         "AllowedValues":[
+            "t3.small",
+            "t3.medium",
+            "t3.large",
+            "m5.medium",
+            "m5.large",
+            "m5.xlarge",
+            "m5.2xlarge"
+         ],
+         "ConstraintDescription": "must be a valid EC2 instance type"
+      },
+      "VpcId": {
+         "Description": "VPC associated with the provided Public/Private Subnets",
+         "Type": "AWS::EC2::VPC::Id"
+      },
+      "PublicSubnets": {
+         "Description": "List of VPC subnet IDs for the cluster",
+         "Type": "List<AWS::EC2::Subnet::Id>"
+      },
+      "RouteTableId": {
+         "Description": "Route Table Id",
+         "Type": "String"
+      }
+   },
+   "Resources": {
+      "Role": {
+         "Type": "AWS::IAM::Role",
+         "Properties": {
+            "AssumeRolePolicyDocument": {
+               "Statement":[
+                  {
+                     "Effect": "Allow",
+                     "Principal": {
+                        "Service":[
+                           "ec2.amazonaws.com"
+                        ]
+                     },
+                     "Action":[
+                        "sts:AssumeRole"
+                     ]
+                  }
+               ]
+            },
+            "Path": "/",
+            "Policies":[
+               {
+                  "PolicyName": {
+                     "Fn::Join":[
+                        "-",
+                        [
+                           {
+                              "Ref": "Name"
+                           },
+                           "EC2-Access"
+                        ]
+                     ]
+                  },
+                  "PolicyDocument": {
+                     "Version": "2012-10-17",
+                     "Statement":[
+                        {
+                           "Effect": "Allow",
+                           "Action":[
+                              "ec2:Describe*",
+                              "ec2:ReplaceRoute",
+                              "ec2:ModifyInstanceAttribute",
+                              "ec2:AssociateAddress"
+                           ],
+                           "Resource": "*"
+                        }
+                     ]
+                  }
+               }
+            ]
+         }
+      },
+      "InstanceProfile": {
+         "Type": "AWS::IAM::InstanceProfile",
+         "Properties": {
+            "Path": "/",
+            "Roles":[
+               {
+                  "Ref": "Role"
+               }
+            ]
+         }
+      },
+      "ServerGroup": {
+         "Type": "AWS::AutoScaling::AutoScalingGroup",
+         "Properties": {
+            "HealthCheckType": "EC2",
+            "HealthCheckGracePeriod": 300,
+            "LaunchConfigurationName": {
+               "Ref": "LaunchConfig"
+            },
+            "MinSize":1,
+            "MaxSize":1,
+            "VPCZoneIdentifier": {
+               "Ref": "PublicSubnets"
+            },
+            "Tags":[
+               {
+                  "Key": "Environment",
+                  "Value": {
+                     "Ref": "Environment"
+                  },
+                  "PropagateAtLaunch": "true"
+               },
+               {
+                  "Key": "Name",
+                  "Value": {
+                     "Ref": "Name"
+                  },
+                  "PropagateAtLaunch": "true"
+               },
+               {
+                  "Key": "Version",
+                  "Value": {
+                     "Ref": "Version"
+                  },
+                  "PropagateAtLaunch": "true"
+               },
+            ]
+         }
+      },
+      "ServerSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "NAT Security Group",
+        "VpcId": { "Ref": "VpcId" },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 1024,
+            "ToPort": 65535,
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "udp",
+            "FromPort": 1024,
+            "ToPort": 65535,
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          },
+          {
+            "Key": "Name",
+            "Value": {
+              "Ref": "Name"
+            }
+          },
+          {
+            "Key": "Version",
+            "Value": {
+              "Ref": "Version"
+            }
+          }
+        ]
+      }
+    },
+      "LaunchConfig": {
+         "Type": "AWS::AutoScaling::LaunchConfiguration",
+         "Properties": {
+            "ImageId": {
+               "Ref": "ImageId"
+            },
+            "SecurityGroups": {
+               "Ref": "ServerSecurityGroup"
+            },
+            "AssociatePublicIpAddress": "true",
+            "IamInstanceProfile": {
+               "Ref": "InstanceProfile"
+            },
+            "InstanceType": {
+               "Ref": "InstanceType"
+            },
+            "InstanceMonitoring": "true",
+            "UserData": {
+               "Fn::Base64": {
+                  "Fn::Join":[
+                     "",
+                     [
+                       "#!/bin/bash",
+                       "\n",
+                       "INSTANCE_ID=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)\n",
+                       "aws ec2 modify-instance-attribute --region ", { "Ref" : "AWS::Region"}, " --instance-id $INSTANCE_ID --no-source-dest-check\n",
+                       "aws ec2 replace-route --region ", { "Ref" : "AWS::Region"}, " --route-table-id ", { "Ref": "RouteTableId" }, " --destination-cidr-block 0.0.0.0/0 --instance-id $INSTANCE_ID\n",
+                       "ELASTIC_IP_ALLOCATION_ID=$(aws ec2 describe-addresses --region ", { "Ref" : "AWS::Region"}, " --filter Name=tag:Name,Values=NAT Name=tag:Type,Values=instance --query Addresses[0].AllocationId | sed -e 's/\"//g')\n",
+                       "if [ ! -z \"$ELASTIC_IP_ALLOCATION_ID\" ]; then aws ec2 associate-address --region ", { "Ref" : "AWS::Region"}, " --instance-id $INSTANCE_ID --allocation-id $ELASTIC_IP_ALLOCATION_ID; fi\n"
+                     ]
+                  ]
+               }
+            }
+         }
+      }
+   }
+}
