@@ -4,7 +4,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - name: Validate template
-      run: |
-        cfn-lint nat.json
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Validate Cloudformation template
+        uses: scottbrenner/cfn-lint-action@1.2.1
+        with:
+          args: nat.json
