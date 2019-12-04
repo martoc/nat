@@ -17,7 +17,7 @@
       },
       "ImageId": {
          "Description": "Ami to be used for NAT server",
-         "Type": "String"
+         "Type": "AWS::EC2::Image::Id"
       },
       "InstanceType": {
          "Description": "EC2 instance type",
@@ -27,7 +27,6 @@
             "t3.small",
             "t3.medium",
             "t3.large",
-            "m5.medium",
             "m5.large",
             "m5.xlarge",
             "m5.2xlarge"
@@ -118,8 +117,8 @@
             "LaunchConfigurationName": {
                "Ref": "LaunchConfig"
             },
-            "MinSize":1,
-            "MaxSize":1,
+            "MinSize": "1",
+            "MaxSize": "1",
             "VPCZoneIdentifier": {
                "Ref": "PublicSubnets"
             },
@@ -129,21 +128,21 @@
                   "Value": {
                      "Ref": "Environment"
                   },
-                  "PropagateAtLaunch": "true"
+                  "PropagateAtLaunch": true
                },
                {
                   "Key": "Name",
                   "Value": {
                      "Ref": "Name"
                   },
-                  "PropagateAtLaunch": "true"
+                  "PropagateAtLaunch": true
                },
                {
                   "Key": "Version",
                   "Value": {
                      "Ref": "Version"
                   },
-                  "PropagateAtLaunch": "true"
+                  "PropagateAtLaunch": true
                }
             ]
          }
@@ -195,17 +194,17 @@
             "ImageId": {
                "Ref": "ImageId"
             },
-            "SecurityGroups": {
+            "SecurityGroups": [{
                "Ref": "ServerSecurityGroup"
-            },
-            "AssociatePublicIpAddress": "true",
+            }],
+            "AssociatePublicIpAddress": true,
             "IamInstanceProfile": {
                "Ref": "InstanceProfile"
             },
             "InstanceType": {
                "Ref": "InstanceType"
             },
-            "InstanceMonitoring": "true",
+            "InstanceMonitoring": true,
             "UserData": {
                "Fn::Base64": {
                   "Fn::Join":[

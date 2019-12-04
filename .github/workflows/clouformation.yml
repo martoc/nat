@@ -7,4 +7,5 @@ jobs:
     - uses: actions/checkout@v1
     - name: Validate template
       run: |
-        cat nat.json | jq
+        pip install cfn-lint
+        cfn-lint nat.json
