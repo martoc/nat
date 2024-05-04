@@ -7,6 +7,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v1
       - name: Validate Cloudformation template
-        uses: scottbrenner/cfn-lint-action@1.2.1
+        uses: scottbrenner/cfn-lint-action@v1.7.0
         with:
           args: nat.json
